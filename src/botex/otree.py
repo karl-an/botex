@@ -243,7 +243,9 @@ def stop_otree_server(otree_server: subprocess.Popen) -> int:
             proc.send_signal(signal.CTRL_BREAK_EVENT)
             proc.wait()
         else: 
-            proc.children()[0].send_signal(signal.SIGKILL)
+            children = proc.children()
+            for child in children:
+                child.send_signal(signal.SIGKILL)
             otree_server.kill()
             otree_server.wait()
         logger.info("oTree server stopped.")

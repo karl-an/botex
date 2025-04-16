@@ -200,6 +200,9 @@ def completion(**kwargs):
     """Main completion function with LangSmith tracing."""
     model = kwargs.get("model")
 
+    if model.startswith("gemini"):
+        kwargs["api_base"] = "https://generativelanguage.googleapis.com/v1beta/"
+
     if model == "llamacpp":
         kwargs.pop("throttle", None)
         return llamacpp_completion(**kwargs)

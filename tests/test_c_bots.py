@@ -6,22 +6,29 @@ import botex
 
 from tests.utils import *
 
-botex.load_botex_env()
+# Load env vars once at module level for other tests if needed
+# but the api_key test will reload specifically
+env_vars_module = botex.load_botex_env()
 
 @pytest.mark.dependency(name="api_key", depends=["botex_env"], scope='session')
 def test_secret_contains_api_key(model):
-    global api_key 
+    # Load env vars and get the dictionary
+    env_vars = botex.load_botex_env()
+    # --- DEBUG PRINT ---
+    print(f"DEBUG: Loaded env_vars: {env_vars}")
+    # --- END DEBUG ---
+    global api_key
     api_key = None
     provider = get_model_provider(model)
     if provider == "llamacpp" or "ollama" in provider:
         assert True
         return
     if provider == "openai":
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = env_vars.get("OPENAI_API_KEY")
     elif provider == "gemini":
-        api_key = os.getenv("GEMINI_API_KEY")
-    
-    assert api_key
+        api_key = env_vars.get("GEMINI_API_KEY")
+
+    assert api_key is not None and api_key != ""
 
 
 # run only if the model is llama.cpp

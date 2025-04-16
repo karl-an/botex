@@ -93,7 +93,11 @@ def get_model_provider(model):
     if "llamacpp" in model:
         return "llamacpp"
     if '/' in model:
-        return model.split('/')[0]
+        parts = model.split('/')
+        # Handle Google's "models/" prefix convention
+        if parts[0] == "models":
+            return parts[1].split('-')[0]  # Get provider from model name
+        return parts[0]
     return "openai"
 
 def create_answer_message(model):
@@ -156,6 +160,9 @@ def check_conversation_and_export_answers(model, session_id):
                     start = r.find('{', 0)
                     end = r.rfind('}', start)
                     r = r[start:end+1]
+                    # Handle JSON wrapped in markdown code blocks
+                    if '```json' in r:
+                        r = r.split('```json')[1].split('```')[0]
                     r = json.loads(r, strict=False)
                 except:
                     break
@@ -192,7 +199,3 @@ def check_conversation_and_export_answers(model, session_id):
         writer = csv.DictWriter(f, fieldnames=qtexts[0].keys())
         writer.writeheader()
         writer.writerows(qtexts)
-
-
-    
-
