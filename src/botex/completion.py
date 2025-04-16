@@ -3,6 +3,8 @@ logger = logging.getLogger("botex")
 
 import warnings
 from importlib.metadata import version, PackageNotFoundError
+from langsmith import traceable
+from .langsmith_setup import traced_completion
 
 # Starting with v1.56.2, LiteLLM triggers a user Pydantic user warning
 # we will filter this out until the issue is resolved  
@@ -93,9 +95,10 @@ def instructor_completion(**kwargs):
     }
     return resp
 
+@traceable
 def litellm_completion(**kwargs):
     """
-    Wrapper function for LiteLLM completion.
+    Wrapper function for LiteLLM completion with LangSmith tracing.
 
     Args:
         **kwargs: The keyword arguments.
@@ -105,7 +108,7 @@ def litellm_completion(**kwargs):
     """
     if not kwargs.get("throttle"):
         try:
-            resp_litellm = litellm.completion(**kwargs)
+            resp_litellm = traced_completion(**kwargs)
         except Exception as e:
             logger.warning(f"Litellm completion failed, error: '{e}'")
             logger.info("Retrying with throttling.")
@@ -113,7 +116,7 @@ def litellm_completion(**kwargs):
             return litellm_completion_with_backoff(**kwargs)
     else:
         kwargs.pop("throttle", None)
-        resp_litellm = litellm.completion(**kwargs)
+        resp_litellm = traced_completion(**kwargs)
     resp = {
         'resp_str': resp_litellm.choices[0].message.content,
         'finish_reason': resp_litellm.choices[0].finish_reason
@@ -192,7 +195,9 @@ def litellm_completion_with_backoff(**kwargs):
 def instructor_completion_with_backoff(**kwargs):
     return instructor_completion(**kwargs)
 
+@traceable
 def completion(**kwargs):
+    """Main completion function with LangSmith tracing."""
     model = kwargs.get("model")
 
     if model == "llamacpp":
@@ -217,4 +222,3 @@ def completion(**kwargs):
         else:
             kwargs.pop("throttle", None)
             return instructor_completion(**kwargs)
-
