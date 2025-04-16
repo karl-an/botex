@@ -10,7 +10,8 @@ botex.load_botex_env()
 
 @pytest.mark.dependency(name="api_key", depends=["botex_env"], scope='session')
 def test_secret_contains_api_key(model):
-    global api_key 
+    botex.load_botex_env() # Explicitly load env vars for this test
+    global api_key
     api_key = None
     provider = get_model_provider(model)
     if provider == "llamacpp" or "ollama" in provider:
@@ -19,7 +20,14 @@ def test_secret_contains_api_key(model):
     if provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY")
     elif provider == "gemini":
-        api_key = os.getenv("GEMINI_API_KEY")
+        # Directly read from .env file as os.getenv seems unreliable here
+        # Directly read from .env file using absolute path
+        import os
+        from dotenv import dotenv_values
+        env_path = os.path.abspath("botex.env")
+        # Specify encoding just in case
+        env_values = dotenv_values(env_path, encoding='utf-8')
+        api_key = env_values.get("GEMINI_API_KEY")
     
     assert api_key
 

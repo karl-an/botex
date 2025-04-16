@@ -23,7 +23,8 @@ def load_botex_env(env_file = "botex.env") -> bool:
             "it sets the botex environment variables that you need."
         )
         return False
-    success = load_dotenv(env_file)
+    # Override existing variables to ensure the .env file takes precedence
+    success = load_dotenv(env_file, override=True)
     if success:
         logger.info(f"Loaded botex environment variables from '{env_file}'")
     else:

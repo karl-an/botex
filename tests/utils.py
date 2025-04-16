@@ -31,9 +31,11 @@ def export_otree_data(csv_file):
     try:
         with open(csv_file) as f:
             participants = list(csv.DictReader(f))
+        current_session_code = botex_session["session_id"]
+        session_participants = [p for p in participants if p.get('session.code') == current_session_code]
     except:
         assert False
-    assert len(participants) == 2
+    assert len(session_participants) == 2, f"Expected 2 participants, found {len(session_participants)} for session {current_session_code}"
     for p in participants:
         assert p['participant._current_page_name'] == 'Thanks'
 
