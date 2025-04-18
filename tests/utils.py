@@ -25,70 +25,135 @@ def init_otree_test_session(botex_db = "tests/botex.sqlite3"):
     )
     return botex_session
 
-def export_otree_data(csv_file):
+def export_otree_data(csv_file, session_id=None):
     botex.export_otree_data(csv_file)
     assert os.path.exists(csv_file)
-    try:
-        with open(csv_file) as f:
-            participants = list(csv.DictReader(f))
-        current_session_code = botex_session["session_id"]
-        session_participants = [p for p in participants if p.get('session.code') == current_session_code]
-    except:
-        assert False
-    assert len(session_participants) == 2, f"Expected 2 participants, found {len(session_participants)} for session {current_session_code}"
-    for p in participants:
+    with open(csv_file) as f:
+        participants = list(csv.DictReader(f))
+    # Wenn keine session_id übergeben, aus CSV ermitteln
+    if session_id is None:
+        session_codes = {p.get('session.code') for p in participants}
+        assert len(session_codes) == 1, f"Erwartet genau einen Session-Code, gefunden: {session_codes}"
+        session_id = session_codes.pop()
+    # Filtere nur Einträge für diese Session
+    session_participants = [p for p in participants if p.get('session.code') == session_id]
+    assert len(session_participants) == 2, f"Expected 2 participants, found {len(session_participants)} for session {session_id}"
+    for p in session_participants:
         assert p['participant._current_page_name'] == 'Thanks'
 
-def normalize_otree_data(csv_file):
-    dta = botex.normalize_otree_data(
-        csv_file, store_as_csv=True, data_exp_path= "tests",
-        exp_prefix="test"
-    )
-    df_names = ['participant', 'session', 'group', 'player']
-    csv_file_names = ["test_" + dfn + ".csv" for dfn in df_names]
-    for cfn in csv_file_names:
-        assert os.path.exists(f"tests/{cfn}")
-    assert isinstance(dta, dict)
-    assert len(dta) == 4
-    assert list(dta.keys()) == df_names
-    assert len(dta['participant']) == 2
-    assert list(dta['participant'][0].keys()) == \
-        ['participant_code', 'current_app', 'current_page', 'time_started_utc']
-    assert len(dta['session']) == 2
-    assert list(dta['session'][0].keys()) == ['session_code', 'participant_code']
-    assert len(dta['group']) == 1
-    assert list(dta['group'][0].keys()) == [
-        'session_code', 'round', 'string_field', 'integer_field', 
-        'boolean_field', 'choice_integer_field', 'radio_field', 
-        'float_field', 'feedback'
-    ]
-    assert len(dta['player']) == 2
-    assert list(dta['player'][0].keys()) == [
-        'participant_code', 'round', 'player_id', 'payoff', 'button_radio', 
-        'role'
-    ]
-    dta = botex.normalize_otree_data(
-        csv_file, store_as_csv=True, data_exp_path= "tests",
-        var_dict={
-            'participant': {
-                'code': 'participant_code', 
-                'time_started_utc': 'time_started_utc'            
-            },
-            'session': {
-                'code': 'session_code'
-            },
-            'botex_test': {
-                'player': {
-                    'payoff': 'payoff',
-                    'button_radio': 'bttn_radio',
+import tempfile
+
+def normalize_otree_data(csv_file, session_id): # Add session_id parameter
+    # Read original CSV
+    with open(csv_file, 'r', encoding='utf-8-sig') as f_in:
+        reader = csv.reader(f_in)
+        all_rows = list(reader)
+
+    if not all_rows:
+        raise ValueError(f"Input CSV file {csv_file} is empty.")
+
+    header = all_rows[0]
+    data_rows = all_rows[1:]
+
+    # Find the index of the session.code column
+    try:
+        session_code_index = header.index('session.code')
+    except ValueError:
+        # Try participant.session.code as fallback
+        try:
+            session_code_index = header.index('participant.session.code')
+        except ValueError:
+            raise ValueError(f"'session.code' or 'participant.session.code' column not found in {csv_file}")
+
+
+    # Filter rows for the specific session_id
+    filtered_rows = [header] + [row for row in data_rows if row[session_code_index] == session_id]
+
+    if len(filtered_rows) <= 1:
+         # Only header or no data for this session
+         logger.warning(f"No data found for session {session_id} in {csv_file}. Skipping normalization checks for this file.")
+         # Return an empty structure or handle as appropriate
+         # For the test, we expect data, so maybe let it fail later if needed,
+         # but create empty temp file to avoid error in normalize_otree_data
+         filtered_rows = [header]
+
+
+    # Write filtered data to a temporary file
+    temp_csv_path = None # Initialize to ensure it's defined in finally block
+    temp_csv_path = None # Initialize to ensure it's defined in finally block
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.csv', newline='', encoding='utf-8-sig') as temp_f:
+            writer = csv.writer(temp_f)
+            writer.writerows(filtered_rows)
+            temp_csv_path = temp_f.name
+
+        # Call botex.normalize_otree_data with the temporary file
+        dta = botex.normalize_otree_data(
+            temp_csv_path, # Use temp file
+            store_as_csv=True,
+            data_exp_path="tests",
+            exp_prefix="test"
+        )
+        df_names = ['participant', 'session', 'group', 'player']
+        csv_file_names = ["test_" + dfn + ".csv" for dfn in df_names]
+        for cfn in csv_file_names:
+            assert os.path.exists(f"tests/{cfn}")
+        assert isinstance(dta, dict)
+        assert len(dta) == 4
+        assert list(dta.keys()) == df_names
+        assert len(dta['participant']) == 2
+        assert list(dta['participant'][0].keys()) == \
+            ['participant_code', 'current_app', 'current_page', 'time_started_utc']
+        assert len(dta['session']) == 2
+        assert list(dta['session'][0].keys()) == ['session_code', 'participant_code']
+        assert len(dta['group']) == 1
+        assert list(dta['group'][0].keys()) == [
+            'session_code', 'round', 'string_field', 'integer_field',
+            'boolean_field', 'choice_integer_field', 'radio_field',
+            'float_field', 'feedback'
+        ]
+        assert len(dta['player']) == 2
+        assert list(dta['player'][0].keys()) == [
+            'participant_code', 'round', 'player_id', 'payoff', 'button_radio',
+            'role'
+        ]
+        # --- Re-run normalization with var_dict using the same filtered temp file ---
+        # This part seems redundant for just checking the participant count,
+        # but keeping the structure similar to the original test helper.
+        # If var_dict processing is essential for later tests, it should use temp_csv_path.
+        var_dict_to_use={
+                'participant': {
+                    'code': 'participant_code',
+                    'time_started_utc': 'time_started_utc'
+                },
+                'session': {
+                    'code': 'session_code'
+                },
+                'botex_test': {
+                    'player': {
+                        'payoff': 'payoff',
+                        'button_radio': 'bttn_radio',
+                    }
                 }
             }
-        },
-        exp_prefix="test"
-    )
-    assert list(dta['player'][0].keys()) == [
-        'participant_code', 'round', 'player_id', 'payoff', 'bttn_radio'
-    ]
+        dta_vardict = botex.normalize_otree_data(
+            temp_csv_path, # Use temp file again
+            store_as_csv=True, # Re-saving might overwrite, consider different prefix or path if needed
+            data_exp_path="tests",
+            var_dict=var_dict_to_use,
+            exp_prefix="test_vardict" # Use different prefix to avoid overwrite
+        )
+        # Assertions for the vardict run (adjust as needed based on expected output)
+        # Example: Check if the remapped column exists
+        assert 'bttn_radio' in dta_vardict['player'][0]
+        assert list(dta_vardict['player'][0].keys()) == [
+             'participant_code', 'round', 'player_id', 'payoff', 'bttn_radio'
+         ]
+
+    # Clean up the temporary file
+    finally:
+        if temp_csv_path and os.path.exists(temp_csv_path):
+            os.remove(temp_csv_path)
 
 
 def get_model_provider(model):

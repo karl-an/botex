@@ -60,10 +60,17 @@ def test_can_botex_start_llamacpp_server(model):
 
 
 @pytest.mark.dependency(
-    name="run_bots", scope='session',
-    depends=["participants_db", "api_key", "start_llamacpp_server"]
-)
+      name="run_bots", scope='session',
+      depends=["participants_db", "api_key", "start_llamacpp_server"]
+  )
 def test_can_survey_be_completed_by_bots(model):
+    # Ensure clean state by deleting previous export file
+    try:
+        os.remove('tests/otree_data.csv')
+    except OSError:
+        pass
+    # Ensure clean BotEx DB before running bots
+    delete_botex_db()
     otree_proc = botex.start_otree_server()
     global botex_session
     botex_session = init_otree_test_session()
@@ -74,20 +81,28 @@ def test_can_survey_be_completed_by_bots(model):
     botex.run_bots_on_session(
         model = model,
         api_key = api_key,
-        session_id=botex_session["session_id"], 
+        session_id=botex_session["session_id"],
         bot_urls=botex_session["bot_urls"],
         botex_db="tests/botex.sqlite3"
     )
-    export_otree_data('tests/otree_data.csv')
+    # Export and validate only the current session data
+    export_otree_data('tests/otree_data.csv', session_id=botex_session["session_id"])
     botex.stop_otree_server(otree_proc)
-    normalize_otree_data('tests/otree_data.csv')
-    assert True
+normalize_otree_data('tests/otree_data.csv', session_id=botex_session["session_id"])
+assert True
 
 @pytest.mark.dependency(
     name="run_bots_full_host", scope='session',
     depends=["participants_db", "api_key"]
 )
 def test_can_survey_be_completed_by_bots_full_hist(model):
+    # Ensure clean state by deleting previous export file
+    try:
+        os.remove('tests/otree_data_full_history.csv')
+    except OSError:
+        pass
+    # Ensure clean BotEx DB before running bots full history
+    delete_botex_db("tests/botex_full_hist.sqlite3")
     provider = get_model_provider(model)
     # Ollama chokes on full history "ollama_chat" seems to work, though
     if provider == "ollama":
@@ -105,15 +120,16 @@ def test_can_survey_be_completed_by_bots_full_hist(model):
     botex.run_bots_on_session(
         model = model,
         api_key = api_key,
-        session_id=botex_session["session_id"], 
+        session_id=botex_session["session_id"],
         bot_urls=botex_session["bot_urls"],
         botex_db="tests/botex.sqlite3",
         full_conv_history=True
     )
-    export_otree_data('tests/otree_data_full_history.csv')
+    # Export and validate only the current session data (full history)
+    export_otree_data('tests/otree_data_full_history.csv', session_id=botex_session["session_id"])
     botex.stop_otree_server(otree_proc)
-    normalize_otree_data('tests/otree_data_full_history.csv')
-    assert True
+normalize_otree_data('tests/otree_data_full_history.csv', session_id=botex_session["session_id"])
+assert True
 
 @pytest.mark.dependency(
     name="stop_llamacpp_server", scope='session',
