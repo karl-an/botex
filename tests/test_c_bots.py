@@ -88,8 +88,8 @@ def test_can_survey_be_completed_by_bots(model):
     # Export and validate only the current session data
     export_otree_data('tests/otree_data.csv', session_id=botex_session["session_id"])
     botex.stop_otree_server(otree_proc)
-normalize_otree_data('tests/otree_data.csv', session_id=botex_session["session_id"])
-assert True
+    normalize_otree_data('tests/otree_data.csv', session_id=botex_session["session_id"])
+    assert True
 
 @pytest.mark.dependency(
     name="run_bots_full_host", scope='session',
@@ -128,8 +128,8 @@ def test_can_survey_be_completed_by_bots_full_hist(model):
     # Export and validate only the current session data (full history)
     export_otree_data('tests/otree_data_full_history.csv', session_id=botex_session["session_id"])
     botex.stop_otree_server(otree_proc)
-normalize_otree_data('tests/otree_data_full_history.csv', session_id=botex_session["session_id"])
-assert True
+    normalize_otree_data('tests/otree_data_full_history.csv', session_id=botex_session["session_id"])
+    assert True
 
 @pytest.mark.dependency(
     name="stop_llamacpp_server", scope='session',
